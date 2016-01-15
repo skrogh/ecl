@@ -142,7 +142,7 @@ void EstimatorBase::setMagData(uint64_t time_usec, float *data)
 	if (time_usec - _time_last_mag > 70000) {
 
 		magSample mag_sample_new = {};
-		mag_sample_new.time_us = time_usec  - _params.mag_delay_ms * 1000;
+		mag_sample_new.time_us = time_usec - _params.mag_delay_ms * 1000;
 
 		mag_sample_new.time_us -= FILTER_UPDATE_PERRIOD_MS * 1000 / 2;
 		_time_last_mag = time_usec;
@@ -213,9 +213,9 @@ void EstimatorBase::setAirspeedData(uint64_t time_usec, float *data)
 	if (time_usec > _time_last_airspeed) {
 		airspeedSample airspeed_sample_new;
 		airspeed_sample_new.airspeed = *data;
-		airspeed_sample_new.time_us -= _params.airspeed_delay_ms * 1000;
+		airspeed_sample_new.time_us = time_usec - _params.airspeed_delay_ms * 1000;
 
-		airspeed_sample_new.time_us = time_usec -= FILTER_UPDATE_PERRIOD_MS * 1000 / 2;
+		airspeed_sample_new.time_us -= FILTER_UPDATE_PERRIOD_MS * 1000 / 2;
 		_time_last_airspeed = time_usec;
 
 		_airspeed_buffer.push(airspeed_sample_new);
@@ -234,6 +234,33 @@ void EstimatorBase::setOpticalFlowData(uint64_t time_usec, float *data)
 
 }
 
+// set optical flow data
+void EstimatorBase::setMocapData(uint64_t time_usec, mocap_message *mocap)
+{
+	if (time_usec > _time_last_mocap) {
+		mocapSample mocap_sample_new;
+		mocap_sample_new.position(0) = mocap->x;
+		mocap_sample_new.position(1) = mocap->y;
+		mocap_sample_new.position(2) = mocap->z;
+		memcpy(mocap_sample_new.attitude._data[0], &mocap->q[0], sizeof(mocap_sample_new.attitude));
+		//mocap_sample_new.time_us = time_usec - _params.mocap_delay_ms * 1000; // TODO: Implement parameter
+		mocap_sample_new.time_us = time_usec - 500 * 1000; // TODO: Implement parameter
+
+		mocap_sample_new.time_us -= FILTER_UPDATE_PERRIOD_MS * 1000 / 2;
+		_time_last_mocap = time_usec;
+
+		// Print actual time of mocap sample and compare to IMU
+		//printf("time new %llu\n", mocap_sample_new.time_us);
+		//printf("time imu %llu\n", _imu_sample_delayed.time_us);
+		//printf("time imu %llu\n", _imu_sample_new.time_us);
+
+		// Ensure that measurements older than oldes IMU in fifo is not so old, that it gets discarded
+		mocap_sample_new.time_us = math::max(mocap_sample_new.time_us, _imu_sample_delayed.time_us);
+
+		_mocap_buffer.push(mocap_sample_new);
+	}
+}
+
 void EstimatorBase::initialiseVariables(uint64_t time_usec)
 {
 	_imu_buffer.allocate(IMU_BUFFER_LENGTH);
@@ -243,6 +270,7 @@ void EstimatorBase::initialiseVariables(uint64_t time_usec)
 	_range_buffer.allocate(OBS_BUFFER_LENGTH);
 	_airspeed_buffer.allocate(OBS_BUFFER_LENGTH);
 	_flow_buffer.allocate(OBS_BUFFER_LENGTH);
+	_mocap_buffer.allocate(OBS_BUFFER_LENGTH);
 	_output_buffer.allocate(IMU_BUFFER_LENGTH);
 
 	_state.ang_error.setZero();
@@ -300,6 +328,7 @@ void EstimatorBase::initialiseVariables(uint64_t time_usec)
 	_time_last_baro = 0;
 	_time_last_range = 0;
 	_time_last_airspeed = 0;
+	_time_last_mocap = 0;
 
 	memset(&_fault_status, 0, sizeof(_fault_status));
 
@@ -421,4 +450,22 @@ void EstimatorBase::printStoredGps()
 	for (int i = 0; i < OBS_BUFFER_LENGTH; i++) {
 		printGps(&_gps_buffer[i]);
 	}
+}
+
+void EstimatorBase::printStoredMocap()
+{
+	printf("---------Printing mocap data buffer------------\n");
+	printf("time new %llu\n", _mocap_buffer.get_newest().time_us);
+	printf("time old %llu\n", _mocap_buffer.get_oldest().time_us);
+	for (int i = 0; i < OBS_BUFFER_LENGTH; i++) {
+		printMocap(&_mocap_buffer[i]);
+	}
+}
+
+void EstimatorBase::printMocap(struct mocapSample *data)
+{
+	printf("time %llu\n", data->time_us);
+	printf("pos: %.5f %.5f %.5f \n\n", (double)data->position(0), (double)data->position(1), (double)data->position(2));
+	printf("att: %.5f %.5f %.5f %.5f \n\n", (double)data->attitude(0), (double)data->attitude(1),
+			 (double)data->attitude(2), (double)data->attitude(3));
 }

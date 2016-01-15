@@ -53,6 +53,7 @@ px4_add_module(
 		EKF/ekf_helper.cpp
 		EKF/covariance.cpp
 		EKF/vel_pos_fusion.cpp
+		EKF/mocap_fusion.cpp
 		EKF/mag_fusion.cpp
 	DEPENDS
 		platforms__common

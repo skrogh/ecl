@@ -92,9 +92,11 @@ bool Ekf::update()
 		predictCovariance();
 	}
 
-	// measurement updates
+	bool mocap_too_old = _time_last_imu - _time_last_mocap > 2000000;
 
-	if (_mag_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mag_sample_delayed)) {
+	// measurement updates
+	//    v---_!params.use_mocap
+	if ((false || mocap_too_old) && _mag_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mag_sample_delayed)) {
 		//fuseHeading();
 		fuseMag(_mag_fuse_index);
 		_mag_fuse_index = (_mag_fuse_index + 1) % 3;
@@ -115,6 +117,15 @@ bool Ekf::update()
 		_gps_sample_delayed.vel.setZero();
 	}
 
+	if (true) { // Using mocap. Disable all other inputs 
+		_fuse_hor_vel = _fuse_vert_vel = _fuse_pos = _fuse_height = false;
+
+		if (mocap_too_old) {
+		// if mocap does not update then fake position and horizontal veloctiy measurements
+		_fuse_hor_vel = true;	// we only fake horizontal velocity because we still have ultrasonic
+		_gps_sample_delayed.vel.setZero();
+		}
+	}
 
 	if (_fuse_height || _fuse_pos || _fuse_hor_vel || _fuse_vert_vel) {
 		fuseVelPosHeight();
@@ -127,6 +138,10 @@ bool Ekf::update()
 
 	if (_airspeed_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_airspeed_sample_delayed)) {
 		fuseAirspeed();
+	}
+
+	if (_mocap_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mocap_sample_delayed)) {
+		fuseMocap();
 	}
 
 	calculateOutputStates();
@@ -309,6 +324,8 @@ void Ekf::fuseRange()
 {
 
 }
+
+// Ekf::fuseMocap() Moved to mocap_fusion.cpp
 
 void Ekf::printStates()
 {

@@ -58,6 +58,15 @@ struct gps_message {
 	bool vel_ned_valid;		// GPS ground speed is valid
 };
 
+struct mocap_message {		// Added by me
+	uint64_t time_usec;
+	float q[4];				// Attitude as unit quaternion
+	float x;				// Local E position in NED frame in meters
+	float y;				// Local N position in NED frame in meters
+	float z;				// Local D position in NED frame in meters
+};
+
+
 struct parameters {
 	float mag_delay_ms = 0.0f;
 	float baro_delay_ms = 0.0f;
@@ -139,6 +148,9 @@ public:
 	// set optical flow data
 	void setOpticalFlowData(uint64_t time_usec, float *data);
 
+	// set mocap data // Added by me
+	void setMocapData(uint64_t time_usec, struct mocap_message *mocap);
+
 	// return a address to the parameters struct
 	// in order to give access to the application
 	parameters *getParamHandle() {return &_params;}
@@ -210,6 +222,12 @@ protected:
 		uint64_t    time_us;
 	};
 
+	struct mocapSample {
+		Vector3f    position;
+		Quaternion  attitude;
+		uint64_t    time_us;
+	};
+
 	parameters _params;		// filter parameters
 
 	static const uint8_t OBS_BUFFER_LENGTH = 10;
@@ -232,6 +250,7 @@ protected:
 	rangeSample _range_sample_delayed;
 	airspeedSample _airspeed_sample_delayed;
 	flowSample _flow_sample_delayed;
+	mocapSample _mocap_sample_delayed;
 
 	outputSample _output_sample_delayed;
 	outputSample _output_new;
@@ -257,6 +276,7 @@ protected:
 	RingBuffer<rangeSample> _range_buffer;
 	RingBuffer<airspeedSample> _airspeed_buffer;
 	RingBuffer<flowSample> 	_flow_buffer;
+	RingBuffer<mocapSample> _mocap_buffer;
 	RingBuffer<outputSample> _output_buffer;
 
 	uint64_t _time_last_imu;
@@ -265,6 +285,7 @@ protected:
 	uint64_t _time_last_baro;
 	uint64_t _time_last_range;
 	uint64_t _time_last_airspeed;
+	uint64_t _time_last_mocap;
 
 	// flags capturing information about severe nummerical problems for various fusions
 	struct {
@@ -292,6 +313,8 @@ public:
 	void printStoredBaro();
 	void printGps(struct gpsSample *data);
 	void printStoredGps();
+	void printMocap(struct mocapSample *data);
+	void printStoredMocap();
 
 	bool position_is_valid();
 

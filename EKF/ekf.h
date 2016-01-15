@@ -132,6 +132,8 @@ private:
 
 	void fuseRange();
 
+	void fuseMocap();
+
 	void fuseVelPosHeight();
 
 	void resetVelocity();
