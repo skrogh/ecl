@@ -72,12 +72,15 @@ struct parameters {
 	float baro_delay_ms = 0.0f;
 	float gps_delay_ms = 200.0f;
 	float airspeed_delay_ms = 200.0f;
+	float mocap_delay_ms = 200.0f;
 	float requiredEph = 10.0f;
 	float requiredEpv = 20.0f;
 
 	// input noise
 	float gyro_noise = 0.001f;
 	float accel_noise = 0.1f;
+
+	int use_mocap = 0;
 
 	// process noise
 	float gyro_bias_p_noise = 1e-5f;
@@ -93,6 +96,12 @@ struct parameters {
 	float mag_heading_noise = 3e-2f;	// measurement noise used for simple heading fusion
 	float mag_declination_deg = 0.0f;	// magnetic declination in degrees
 	float heading_innov_gate = 0.5f;	// innovation gate for heading innovation test
+	float mocap_x_noise = 0.01f;		// motion capture x noise
+	float mocap_y_noise = 0.01f;		// motion capture y noise
+	float mocap_z_noise = 0.25f;		// motion capture z noise
+	float mocap_r_noise = 5f;		// motion capture roll noise
+	float mocap_p_noise = 5f;		// motion capture pich noise
+	float mocap_h_noise = 0.1f;		// motion capture headding noise
 };
 
 class EstimatorBase
@@ -328,16 +337,20 @@ public:
 	{
 		for (unsigned i = 0; i < 3; i++) {
 			vel[i] = _output_new.vel(i);
+			//vel[i] = _state.vel(i);
 		}
 	}
 	void copy_position(float *pos)
 	{
 		for (unsigned i = 0; i < 3; i++) {
 			pos[i] = _output_new.pos(i);
+			//pos[i] = _state.pos(i);
 		}
 	}
-	void copy_timestamp(uint64_t *time_us)
-	{
+
+	virtual void copy_velocity_var(float *vel_var) {}
+	virtual void copy_position_var(float *pos_var) {}
+	void copy_timestamp(uint64_t *time_us) {
 		*time_us = _imu_time_last;
 	}
 

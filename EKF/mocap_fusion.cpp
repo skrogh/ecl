@@ -52,9 +52,9 @@ void Ekf::fuseMocap()
 	innovations[0] = _state.pos(0) - _mocap_sample_delayed.position(0);
 	innovations[1] = _state.pos(1) - _mocap_sample_delayed.position(1);
 	innovations[2] = _state.pos(2) - _mocap_sample_delayed.position(2);
-	R[0] = sq(0.002);
-	R[1] = sq(0.002);
-	R[2] = sq(0.005);
+	R[0] = _params.mocap_x_noise;
+	R[1] = _params.mocap_y_noise;
+	R[2] = _params.mocap_z_noise;
 
 	// Calculate quaternion error
 	Quaternion quat_inv = _state.quat_nominal.inversed();
@@ -66,7 +66,7 @@ void Ekf::fuseMocap()
 
 	if (q_error(0) >= 0.0f) {
 		scalar = -2.0f;
-
+		
 	} else {
 		scalar = 2.0f;
 	}
@@ -74,17 +74,9 @@ void Ekf::fuseMocap()
 	innovations[3] = scalar * q_error(1);
 	innovations[4] = scalar * q_error(2);
 	innovations[5] = scalar * q_error(3);
-	R[3] = sq(0.2);
-	R[4] = sq(0.2);
-	R[5] = sq(0.1);
-
-	printf( "\nmocap q: %.3f %.3f %.3f %.3f\n", (double)_mocap_sample_delayed.attitude(0),
-			 (double)_mocap_sample_delayed.attitude(1), (double)_mocap_sample_delayed.attitude(2),
-			 (double)_mocap_sample_delayed.attitude(3) );
-	printf( "state q: %.3f %.3f %.3f %.3f\n", (double)_state.quat_nominal(0),
-			 (double)_state.quat_nominal(1), (double)_state.quat_nominal(2),
-			 (double)_state.quat_nominal(3) );
-
+	R[3] = _params.mocap_r_noise;
+	R[4] = _params.mocap_p_noise;
+	R[5] = _params.mocap_h_noise;
 
 	// Do fusion for each axis for position
 	for (unsigned obs_index = 0; obs_index < 6; obs_index++) {

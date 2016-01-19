@@ -95,8 +95,7 @@ bool Ekf::update()
 	bool mocap_too_old = _time_last_imu - _time_last_mocap > 2000000;
 
 	// measurement updates
-	//    v---_!params.use_mocap
-	if ((false || mocap_too_old) && _mag_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mag_sample_delayed)) {
+	if ((!_params.use_mocap || mocap_too_old) && _mag_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mag_sample_delayed)) {
 		//fuseHeading();
 		fuseMag(_mag_fuse_index);
 		_mag_fuse_index = (_mag_fuse_index + 1) % 3;
@@ -117,13 +116,17 @@ bool Ekf::update()
 		_gps_sample_delayed.vel.setZero();
 	}
 
-	if (true) { // Using mocap. Disable all other inputs 
+	if (_params.use_mocap) { // Using mocap
+		// Disable all GPS and baro updates
 		_fuse_hor_vel = _fuse_vert_vel = _fuse_pos = _fuse_height = false;
 
-		if (mocap_too_old) {
-		// if mocap does not update then fake position and horizontal veloctiy measurements
-		_fuse_hor_vel = true;	// we only fake horizontal velocity because we still have ultrasonic
-		_gps_sample_delayed.vel.setZero();
+		if (_mocap_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mocap_sample_delayed)) {
+			fuseMocap();
+		
+		} else if (mocap_too_old) {
+			// if mocap does not update then fake horizontal veloctiy measurements
+			_fuse_hor_vel = true;	// we only fake horizontal velocity because we still have ultrasonic TODO: add ultrasonic
+			_gps_sample_delayed.vel.setZero();
 		}
 	}
 
@@ -140,11 +143,7 @@ bool Ekf::update()
 		fuseAirspeed();
 	}
 
-	if (_mocap_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mocap_sample_delayed)) {
-		fuseMocap();
-	}
-
-	calculateOutputStates();
+	calculateOutputStatesNew();
 
 	return ret;
 }
@@ -405,4 +404,74 @@ void Ekf::printStatesFast()
 	}
 
 	counter_fast++;
+}
+
+void Ekf::advanceOutputPredict(outputSample &state_input, outputSample &state_output,
+		 Vector3f &delta_vel, float delta_vel_dt, Vector3f &delta_ang)
+{
+	// attitude error state prediciton
+	matrix::Dcm<float> R_to_earth(state_input.quat_nominal);	// transformation matrix from body to world frame
+	matrix::Vector3f corrected_delta_ang = delta_ang;
+
+	Quaternion dq;	// delta quaternion since last update
+	dq.from_axis_angle(corrected_delta_ang);
+	state_output.quat_nominal = dq * state_input.quat_nominal;
+	state_output.quat_nominal.normalize();
+
+	matrix::Vector3f vel_last = state_input.vel;
+
+	// predict velocity states
+	state_output.vel = state_input.vel + R_to_earth * delta_vel;
+	state_output.vel(2) += 9.81f * delta_vel_dt;
+
+	// predict position states via trapezoidal integration of velocity
+	state_output.pos = state_input.pos + (vel_last + state_output.vel) * delta_vel_dt * 0.5f;
+}
+
+void Ekf::calculateOutputStatesNew()
+{
+	static bool initialized = false;
+	static outputSample output_fifo[31]; // Oldest first "ready" last
+
+	if (!initialized) {
+		initialized = true;
+		Quaternion unit_q(1.0f, 0.0f, 0.0f, 0.0f);
+		for (unsigned i=0; i<31; i++) {
+			output_fifo[i].quat_nominal = unit_q;
+			output_fifo[i].vel.setZero();
+			output_fifo[i].pos.setZero();
+		}
+	}
+
+	if(_imu_updated) {
+		// Get newest downsampled IMU data.
+		// We use the downsampled IMU to propagate output estimate
+		// to save some processing power
+		imuSample imu_new = _imu_buffer.get_newest();
+		// Predict all older estimates:
+		for (int i=29; i>=0; i--) {
+			advanceOutputPredict(output_fifo[i], output_fifo[i+1],
+				 imu_new.delta_vel, imu_new.delta_vel_dt, imu_new.delta_ang);
+		}
+
+		outputSample output_fifo_new;
+		output_fifo_new.time_us = imu_new.time_us;
+		output_fifo_new.quat_nominal = _state.quat_nominal;
+		output_fifo_new.vel = _state.vel;
+		output_fifo_new.pos = _state.pos;
+		// Push new kalman estimate to predictor fifo,
+		// since it was just predicted and updated no need to do anything more
+		output_fifo[0] = output_fifo_new;
+		// Replace current output prediction, with the most recent
+		_output_new = output_fifo[30];
+	}
+
+	else {
+		// Get newest at original rate
+		imuSample imu_new = _imu_sample_new;
+		// Advance current output prediction,
+		// this upsamles the output back to the same rate as IMU inputs
+		advanceOutputPredict(_output_new, _output_new,
+				 imu_new.delta_vel, imu_new.delta_vel_dt, imu_new.delta_ang);
+	}
 }

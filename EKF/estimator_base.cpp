@@ -243,8 +243,7 @@ void EstimatorBase::setMocapData(uint64_t time_usec, mocap_message *mocap)
 		mocap_sample_new.position(1) = mocap->y;
 		mocap_sample_new.position(2) = mocap->z;
 		memcpy(mocap_sample_new.attitude._data[0], &mocap->q[0], sizeof(mocap_sample_new.attitude));
-		//mocap_sample_new.time_us = time_usec - _params.mocap_delay_ms * 1000; // TODO: Implement parameter
-		mocap_sample_new.time_us = time_usec - 500 * 1000; // TODO: Implement parameter
+		mocap_sample_new.time_us = time_usec - _params.mocap_delay_ms * 1000;
 
 		mocap_sample_new.time_us -= FILTER_UPDATE_PERRIOD_MS * 1000 / 2;
 		_time_last_mocap = time_usec;

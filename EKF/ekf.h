@@ -50,6 +50,17 @@ public:
 	Ekf();
 	~Ekf();
 
+	void copy_velocity_var(float *vel_var) {
+		for (unsigned i = 0; i < 3; i++) {
+			vel_var[i] = P[i+3][i+6];
+		}
+	}
+	void copy_position_var(float *pos_var) {
+		for (unsigned i = 0; i < 3; i++) {
+			pos_var[i] = P[i+6][i+6];
+		}
+	}
+
 	bool update();
 
 	// gets the innovations of velocity and position measurements
@@ -115,6 +126,11 @@ private:
 	Vector3f _vel_corr;
 
 	void calculateOutputStates();
+
+	void calculateOutputStatesNew();
+
+	void advanceOutputPredict(outputSample &state_input, outputSample &state_output,
+		 Vector3f &delta_vel, float delta_vel_dt, Vector3f &delta_ang);
 
 	bool initialiseFilter(void);
 
