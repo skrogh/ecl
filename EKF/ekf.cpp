@@ -433,8 +433,6 @@ void Ekf::calculateOutputStatesNew()
 	static bool initialized = false;
 	static imuSample imu_fifo[30]; // FIFO of imu samples. Oldest first. redo this with ringbuffer?
 
-	int predicts = _params.use_predict>30?30:_params.use_predict;
-
 	if (!initialized) {
 		initialized = true;
 		Quaternion unit_q(1.0f, 0.0f, 0.0f, 0.0f);
@@ -455,8 +453,8 @@ void Ekf::calculateOutputStatesNew()
 		_output_new.quat_nominal = _state.quat_nominal;
 		_output_new.vel = _state.vel;
 		_output_new.pos = _state.pos;
-		// Predict state to current time
-		for (int i=0; i<predicts; i++) {
+		// Predict state to current time (skip oldest, as this was just used for a preiction of the state)
+		for (int i=1; i<30; i++) {
 			advanceOutputPredict(_output_new, _output_new,
 				 imu_fifo[i].delta_vel, imu_fifo[i].delta_vel_dt, imu_fifo[i].delta_ang);
 		}
@@ -472,9 +470,14 @@ void Ekf::calculateOutputStatesNew()
 		// Advance current output prediction,
 		// this upsamles the output back to the same rate as IMU inputs
 		_output_new.time_us = _imu_sample_new.time_us;
-		if (predicts == 30) {
-			advanceOutputPredict(_output_new, _output_new,
-					 imu_new.delta_vel, imu_new.delta_vel_dt, imu_new.delta_ang);
-		}
+		advanceOutputPredict(_output_new, _output_new,
+				 imu_new.delta_vel, imu_new.delta_vel_dt, imu_new.delta_ang);
+	}
+
+	// Bypass predictor if we are debuging
+	if (_params.use_predict) {
+		_output_new.quat_nominal = _state.quat_nominal;
+		_output_new.vel = _state.vel;
+		_output_new.pos = _state.pos;
 	}
 }
