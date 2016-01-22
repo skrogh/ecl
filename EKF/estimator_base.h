@@ -99,8 +99,8 @@ struct parameters {
 	float mocap_x_noise = 0.01f;		// motion capture x noise
 	float mocap_y_noise = 0.01f;		// motion capture y noise
 	float mocap_z_noise = 0.25f;		// motion capture z noise
-	float mocap_r_noise = 5f;		// motion capture roll noise
-	float mocap_p_noise = 5f;		// motion capture pich noise
+	float mocap_r_noise = 5.0f;		// motion capture roll noise
+	float mocap_p_noise = 5.0f;		// motion capture pich noise
 	float mocap_h_noise = 0.1f;		// motion capture headding noise
 };
 
