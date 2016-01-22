@@ -431,39 +431,39 @@ void Ekf::advanceOutputPredict(outputSample &state_input, outputSample &state_ou
 void Ekf::calculateOutputStatesNew()
 {
 	static bool initialized = false;
-	static outputSample output_fifo[31]; // Oldest first "ready" last
+	static imuSample imu_fifo[30]; // FIFO of imu samples. Oldest first. redo this with ringbuffer?
+
+	int predicts = _params.use_predict>30?30:_params.use_predict;
 
 	if (!initialized) {
 		initialized = true;
 		Quaternion unit_q(1.0f, 0.0f, 0.0f, 0.0f);
-		for (unsigned i=0; i<31; i++) {
-			output_fifo[i].quat_nominal = unit_q;
-			output_fifo[i].vel.setZero();
-			output_fifo[i].pos.setZero();
+		for (unsigned i=0; i<30; i++) {
+			imu_fifo[i].delta_vel = 0;
+			imu_fifo[i].delta_vel_dt = 0;
+			imu_fifo[i].delta_ang = 0;
 		}
 	}
 
-	if(_imu_updated) {
+	// Check if IMU updated, as this will also result in a state update
+	if (_imu_updated) {
 		// Get newest downsampled IMU data.
 		// We use the downsampled IMU to propagate output estimate
 		// to save some processing power
-		imuSample imu_new = _imu_buffer.get_newest();
-		// Predict all older estimates:
-		for (int i=29; i>=0; i--) {
-			advanceOutputPredict(output_fifo[i], output_fifo[i+1],
-				 imu_new.delta_vel, imu_new.delta_vel_dt, imu_new.delta_ang);
+		imu_fifo[29] = _imu_buffer.get_newest();
+		_output_new.time_us = imu_fifo[29].time_us;
+		_output_new.quat_nominal = _state.quat_nominal;
+		_output_new.vel = _state.vel;
+		_output_new.pos = _state.pos;
+		// Predict state to current time
+		for (int i=0; i<predicts; i++) {
+			advanceOutputPredict(_output_new, _output_new,
+				 imu_fifo[i].delta_vel, imu_fifo[i].delta_vel_dt, imu_fifo[i].delta_ang);
 		}
-
-		outputSample output_fifo_new;
-		output_fifo_new.time_us = imu_new.time_us;
-		output_fifo_new.quat_nominal = _state.quat_nominal;
-		output_fifo_new.vel = _state.vel;
-		output_fifo_new.pos = _state.pos;
-		// Push new kalman estimate to predictor fifo,
-		// since it was just predicted and updated no need to do anything more
-		output_fifo[0] = output_fifo_new;
-		// Replace current output prediction, with the most recent
-		_output_new = output_fifo[30];
+		// Move fifo elements
+		for (int i=0; i<29; i++) {
+			imu_fifo[i] = imu_fifo[i+1];
+		}
 	}
 
 	else {
@@ -471,7 +471,10 @@ void Ekf::calculateOutputStatesNew()
 		imuSample imu_new = _imu_sample_new;
 		// Advance current output prediction,
 		// this upsamles the output back to the same rate as IMU inputs
-		advanceOutputPredict(_output_new, _output_new,
-				 imu_new.delta_vel, imu_new.delta_vel_dt, imu_new.delta_ang);
+		_output_new.time_us = _imu_sample_new.time_us;
+		if (predicts == 30) {
+			advanceOutputPredict(_output_new, _output_new,
+					 imu_new.delta_vel, imu_new.delta_vel_dt, imu_new.delta_ang);
+		}
 	}
 }

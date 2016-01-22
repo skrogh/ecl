@@ -66,7 +66,6 @@ struct mocap_message {		// Added by me
 	float z;				// Local D position in NED frame in meters
 };
 
-
 struct parameters {
 	float mag_delay_ms = 0.0f;
 	float baro_delay_ms = 0.0f;
@@ -81,6 +80,7 @@ struct parameters {
 	float accel_noise = 0.1f;
 
 	int use_mocap = 0;
+	int use_predict = 30;
 
 	// process noise
 	float gyro_bias_p_noise = 1e-5f;
@@ -237,7 +237,7 @@ protected:
 		uint64_t    time_us;
 	};
 
-	parameters _params;		// filter parameters
+	parameters _params;
 
 	static const uint8_t OBS_BUFFER_LENGTH = 10;
 	static const uint8_t IMU_BUFFER_LENGTH = 30;
